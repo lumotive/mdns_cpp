@@ -3,6 +3,7 @@
 #include <string.h>
 
 #include <iostream>
+#include <vector>
 #include <memory>
 #include <thread>
 
@@ -27,7 +28,7 @@ class ServiceRecord {
   mdns_record_t record_srv;
   mdns_record_t record_a;
   mdns_record_t record_aaaa;
-  mdns_record_t txt_record[2];
+  std::vector<mdns_record_t> txt_records;
 };
 
 mdns_string_t to_mdns_str_ref(const std::string &str_ref) { return {str_ref.c_str(), str_ref.length()}; }
@@ -448,10 +449,10 @@ int service_callback(int sock, const struct sockaddr *from, size_t addrlen, mdns
       if (service_record->address_ipv4.sin_family == AF_INET) additional[additional_count++] = service_record->record_a;
       if (service_record->address_ipv6.sin6_family == AF_INET6)
         additional[additional_count++] = service_record->record_aaaa;
-      // Add two test TXT records for our service instance name, will be coalesced into
-      // one record with both key-value pair strings by the library
-      additional[additional_count++] = service_record->txt_record[0];
-      additional[additional_count++] = service_record->txt_record[1];
+      // Add all TXT records for our service instance name
+      for (const auto& txt_record : service_record->txt_records) {
+        additional[additional_count++] = txt_record;
+      }
       // Send the answer, unicast or multicast depending on flag in query
       uint16_t unicast = (rclass & MDNS_UNICAST_RESPONSE);
       printf("  --> answer %.*s port %d (%s)\n", MDNS_STRING_FORMAT(service_record->record_srv.data.srv.name),
@@ -481,10 +482,10 @@ int service_callback(int sock, const struct sockaddr *from, size_t addrlen, mdns
       if (service_record->address_ipv4.sin_family == AF_INET) additional[additional_count++] = service_record->record_a;
       if (service_record->address_ipv6.sin6_family == AF_INET6)
         additional[additional_count++] = service_record->record_aaaa;
-      // Add two test TXT records for our service instance name, will be coalesced into
-      // one record with both key-value pair strings by the library
-      additional[additional_count++] = service_record->txt_record[0];
-      additional[additional_count++] = service_record->txt_record[1];
+      // Add all TXT records for our service instance name
+      for (const auto& txt_record : service_record->txt_records) {
+        additional[additional_count++] = txt_record;
+      }
       // Send the answer, unicast or multicast depending on flag in query
       uint16_t unicast = (rclass & MDNS_UNICAST_RESPONSE);
       printf("  --> answer %.*s port %d (%s)\n", MDNS_STRING_FORMAT(service_record->record_srv.data.srv.name),
@@ -511,10 +512,10 @@ int service_callback(int sock, const struct sockaddr *from, size_t addrlen, mdns
       // AAAA record mapping "<hostname>.local." to IPv6 addresses
       if (service_record->address_ipv6.sin6_family == AF_INET6)
         additional[additional_count++] = service_record->record_aaaa;
-      // Add two test TXT records for our service instance name, will be coalesced into
-      // one record with both key-value pair strings by the library
-      additional[additional_count++] = service_record->txt_record[0];
-      additional[additional_count++] = service_record->txt_record[1];
+      // Add all TXT records for our service instance name
+      for (const auto& txt_record : service_record->txt_records) {
+        additional[additional_count++] = txt_record;
+      }
       // Send the answer, unicast or multicast depending on flag in query
       uint16_t unicast = (rclass & MDNS_UNICAST_RESPONSE);
       const auto addrstr =
@@ -540,10 +541,10 @@ int service_callback(int sock, const struct sockaddr *from, size_t addrlen, mdns
       size_t additional_count = 0;
       // A record mapping "<hostname>.local." to IPv4 addresses
       if (service_record->address_ipv4.sin_family == AF_INET) additional[additional_count++] = service_record->record_a;
-      // Add two test TXT records for our service instance name, will be coalesced into
-      // one record with both key-value pair strings by the library
-      additional[additional_count++] = service_record->txt_record[0];
-      additional[additional_count++] = service_record->txt_record[1];
+      // Add all TXT records for our service instance name
+      for (const auto& txt_record : service_record->txt_records) {
+        additional[additional_count++] = txt_record;
+      }
       // Send the answer, unicast or multicast depending on flag in query
       uint16_t unicast = (rclass & MDNS_UNICAST_RESPONSE);
       auto addrstr = ipAddressToString(addrbuffer, sizeof(addrbuffer),
@@ -676,33 +677,49 @@ void mDNS::runMainLoop() {
   service_record.record_aaaa.rclass = 0;
   service_record.record_aaaa.ttl = 0;
 
-  // Add two test TXT records for our service instance name, will be coalesced into
-  // one record with both key-value pair strings by the library
-  service_record.txt_record[0].name = to_mdns_str_ref(service_record.service_instance);
-  service_record.txt_record[0].type = MDNS_RECORDTYPE_TXT;
-  service_record.txt_record[0].data.txt =
-      mdns_record_txt_t{.key = {MDNS_STRING_CONST("test")}, .value = {MDNS_STRING_CONST("1")}};
-  service_record.txt_record[0].rclass = 0;
-  service_record.txt_record[0].ttl = 0;
 
-  service_record.txt_record[1].name = to_mdns_str_ref(service_record.service_instance);
-  service_record.txt_record[1].type = MDNS_RECORDTYPE_TXT;
-  service_record.txt_record[1].data.txt =
-      mdns_record_txt_t{.key = {MDNS_STRING_CONST("other")}, .value = {MDNS_STRING_CONST("value")}};
-  service_record.txt_record[1].rclass = 0;
-  service_record.txt_record[1].ttl = 0;
+  // Parse txt_record_ string and set up N TXT records
+  // Format: "key1=value1;key2=value2" or "key1=value1,key2=value2"
+  std::vector<std::pair<std::string, std::string>> txt_pairs;
+  size_t start = 0;
+  while (start < txt_record_.size()) {
+    size_t end = txt_record_.find_first_of(";,", start);
+    std::string pair = txt_record_.substr(start, end - start);
+    size_t eq = pair.find('=');
+    if (eq != std::string::npos) {
+      txt_pairs.emplace_back(pair.substr(0, eq), pair.substr(eq + 1));
+    } else if (!pair.empty()) {
+      txt_pairs.emplace_back(pair, "");
+    }
+    if (end == std::string::npos) break;
+    start = end + 1;
+  }
+  service_record.txt_records.clear();
+  for (size_t i = 0; i < txt_pairs.size(); ++i) {
+    mdns_record_t txt_record{};
+    txt_record.name = to_mdns_str_ref(service_record.service_instance);
+    txt_record.type = MDNS_RECORDTYPE_TXT;
+    txt_record.data.txt = mdns_record_txt_t{
+      .key = to_mdns_str_ref(txt_pairs[i].first),
+      .value = to_mdns_str_ref(txt_pairs[i].second)
+    };
+    txt_record.rclass = 0;
+    txt_record.ttl = 0;
+    service_record.txt_records.push_back(txt_record);
+  }
 
   // Send an announcement on startup of service
   {
     MDNS_LOG << "Sending announce\n";
-    mdns_record_t additional[5] = {{}};
+    mdns_record_t additional[32] = {{}};
     size_t additional_count = 0;
     additional[additional_count++] = service_record.record_srv;
     if (service_record.address_ipv4.sin_family == AF_INET) additional[additional_count++] = service_record.record_a;
     if (service_record.address_ipv6.sin6_family == AF_INET6)
       additional[additional_count++] = service_record.record_aaaa;
-    additional[additional_count++] = service_record.txt_record[0];
-    additional[additional_count++] = service_record.txt_record[1];
+    for (const auto& txt_record : service_record.txt_records) {
+      additional[additional_count++] = txt_record;
+    }
     for (int isock = 0; isock < num_sockets; ++isock)
       mdns_announce_multicast(sockets[isock], buffer.get(), capacity, service_record.record_ptr, 0, 0, additional,
                               additional_count);
@@ -736,14 +753,15 @@ void mDNS::runMainLoop() {
   // Send a goodbye on end of service
   {
     MDNS_LOG << "Sending goodbye\n";
-    mdns_record_t additional[5] = {{}};
+    mdns_record_t additional[32] = {{}};
     size_t additional_count = 0;
     additional[additional_count++] = service_record.record_srv;
     if (service_record.address_ipv4.sin_family == AF_INET) additional[additional_count++] = service_record.record_a;
     if (service_record.address_ipv6.sin6_family == AF_INET6)
       additional[additional_count++] = service_record.record_aaaa;
-    additional[additional_count++] = service_record.txt_record[0];
-    additional[additional_count++] = service_record.txt_record[1];
+    for (const auto& txt_record : service_record.txt_records) {
+      additional[additional_count++] = txt_record;
+    }
 
     for (int isock = 0; isock < num_sockets; ++isock)
       mdns_goodbye_multicast(sockets[isock], buffer.get(), capacity, service_record.record_ptr, 0, 0, additional,
