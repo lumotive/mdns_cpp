@@ -1,3 +1,5 @@
+#include <map>
+#include <vector>
 #pragma once
 
 #include <functional>
@@ -18,8 +20,18 @@
 #endif
 
 namespace mdns_cpp {
+struct ServiceInfo {
+  std::string instance_name;
+  std::string host_name;
+  std::string address;
+  int port = 0;
+  std::vector<std::pair<std::string, std::string>> txt_records;
+  bool has_ptr = false, has_srv = false, has_a = false, has_txt = false;
+};
 
 class mDNS {
+  // Discover mDNS services of a given type, returns map of instance_name -> ServiceInfo
+  std::map<std::string, ServiceInfo> discoverServices(const std::string& service_type, int timeout_ms);
  public:
   ~mDNS();
 
@@ -33,8 +45,8 @@ class mDNS {
   void setServiceTxtRecord(const std::string &text_record);
 
   using ServiceQueries = std::vector<std::pair<std::string, int>>;
-  void executeQuery(ServiceQueries service);
-  void executeDiscovery();
+  std::map<std::string, ServiceInfo> executeQuery(ServiceQueries service);
+  std::map<std::string, ServiceInfo> executeDiscovery();
 
  private:
   void runMainLoop();
