@@ -23,7 +23,7 @@ namespace mdns_cpp {
 struct ServiceInfo {
   std::string instance_name;
   std::string host_name;
-  std::string address;
+  std::vector<std::string> addresses;
   int port = 0;
   std::vector<std::pair<std::string, std::string>> txt_records;
   bool has_ptr = false, has_srv = false, has_a = false, has_txt = false;

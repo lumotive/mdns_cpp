@@ -5,15 +5,6 @@
 #include <atomic>
 #include <arpa/inet.h>
 
-struct ServiceInfo {
-  std::string instance_name;
-  std::string host_name;
-  std::string address;
-  int port = 0;
-  std::vector<std::pair<std::string, std::string>> txt_records;
-  bool has_ptr = false, has_srv = false, has_a = false, has_txt = false;
-};
-
 #include "mdns_cpp/mdns.hpp"
 
 #include <string.h>
@@ -72,17 +63,37 @@ static int discovery_query_callback(int sock, const struct sockaddr* from, size_
     char ip[INET_ADDRSTRLEN];
     inet_ntop(AF_INET, &addr.sin_addr, ip, sizeof(ip));
     std::string hostname(name.str, name.length); // Use the actual hostname as key
-    ctx->services[hostname].address = ip;
+
+
+    // Add this address to all service instances whose host_name matches this hostname
+    for (auto& [instance, info] : ctx->services) {
+      if (info.host_name == hostname) {
+        auto& addrs = info.addresses;
+        if (std::find(addrs.begin(), addrs.end(), ip) == addrs.end()) {
+          addrs.push_back(ip);
+        }
+        info.has_a = !addrs.empty();
+      }
+    }
+
+    // Also, for direct hostname entry (for completeness)
+    auto& addrs = ctx->services[hostname].addresses;
+    if (std::find(addrs.begin(), addrs.end(), ip) == addrs.end()) {
+      addrs.push_back(ip);
+    }
     ctx->services[hostname].host_name = hostname;
-    ctx->services[hostname].has_a = true;
+    ctx->services[hostname].has_a = !addrs.empty();
   } else if (rtype == MDNS_RECORDTYPE_TXT) {
     mdns_record_txt_t txt_records[8];
     size_t txt_count = mdns_record_parse_txt(data, size, record_offset, record_length, txt_records, 8);
     std::string instance(name.str, name.length);
+    auto& txts = ctx->services[instance].txt_records;
     for (size_t i = 0; i < txt_count; ++i) {
       std::string key(txt_records[i].key.str, txt_records[i].key.length);
       std::string value(txt_records[i].value.str, txt_records[i].value.length);
-      ctx->services[instance].txt_records.emplace_back(key, value);
+      if (!key.empty() && std::find(txts.begin(), txts.end(), std::make_pair(key, value)) == txts.end()) {
+        txts.emplace_back(key, value);
+      }
     }
     ctx->services[instance].has_txt = true;
   }
@@ -886,11 +897,17 @@ std::map<std::string, ServiceInfo> mDNS::executeQuery(ServiceQueries serviceQuer
   for (int isock = 0; isock < num_sockets; ++isock) {
     mdns_socket_close(sockets[isock]);
   }
-  // Build a hostname->IP map from all A records
-  std::map<std::string, std::string> hostname_to_ip;
+  // Build a hostname->addresses map from all A records
+  std::map<std::string, std::vector<std::string>> hostname_to_addrs;
+  // Collect all addresses for each host
   for (const auto& [key, info] : ctx.services) {
-    if (!info.host_name.empty() && !info.address.empty() && info.has_a) {
-      hostname_to_ip[info.host_name] = info.address;
+    if (!info.host_name.empty() && !info.addresses.empty() && info.has_a) {
+      for (const auto& addr : info.addresses) {
+        auto& vec = hostname_to_addrs[info.host_name];
+        if (std::find(vec.begin(), vec.end(), addr) == vec.end()) {
+          vec.push_back(addr);
+        }
+      }
     }
   }
   std::map<std::string, ServiceInfo> result;
@@ -898,15 +915,24 @@ std::map<std::string, ServiceInfo> mDNS::executeQuery(ServiceQueries serviceQuer
     if (info.has_ptr && info.has_srv && info.has_txt) {
       ServiceInfo complete = info;
       if (!info.host_name.empty()) {
-        if (hostname_to_ip.count(info.host_name)) {
-          complete.address = hostname_to_ip.at(info.host_name);
-          complete.has_a = true;
+        // Bundle all addresses for this host
+        if (hostname_to_addrs.count(info.host_name)) {
+          for (const auto& addr : hostname_to_addrs.at(info.host_name)) {
+            if (std::find(complete.addresses.begin(), complete.addresses.end(), addr) == complete.addresses.end()) {
+              complete.addresses.push_back(addr);
+            }
+          }
+          complete.has_a = !complete.addresses.empty();
         } else {
           std::string alt_host = info.host_name;
           if (!alt_host.empty() && alt_host.back() == '.') alt_host.pop_back();
-          if (hostname_to_ip.count(alt_host)) {
-            complete.address = hostname_to_ip.at(alt_host);
-            complete.has_a = true;
+          if (hostname_to_addrs.count(alt_host)) {
+            for (const auto& addr : hostname_to_addrs.at(alt_host)) {
+              if (std::find(complete.addresses.begin(), complete.addresses.end(), addr) == complete.addresses.end()) {
+                complete.addresses.push_back(addr);
+              }
+            }
+            complete.has_a = !complete.addresses.empty();
           }
         }
       }
@@ -945,11 +971,17 @@ std::map<std::string, ServiceInfo> mDNS::executeDiscovery() {
   for (int isock = 0; isock < num_sockets; ++isock) {
     mdns_socket_close(sockets[isock]);
   }
-  // Build a hostname->IP map from all A records
-  std::map<std::string, std::string> hostname_to_ip;
+  // Build a hostname->addresses map from all A records
+  std::map<std::string, std::vector<std::string>> hostname_to_addrs;
+  // Collect all addresses for each host
   for (const auto& [key, info] : ctx.services) {
-    if (!info.host_name.empty() && !info.address.empty() && info.has_a) {
-      hostname_to_ip[info.host_name] = info.address;
+    if (!info.host_name.empty() && !info.addresses.empty() && info.has_a) {
+      for (const auto& addr : info.addresses) {
+        auto& vec = hostname_to_addrs[info.host_name];
+        if (std::find(vec.begin(), vec.end(), addr) == vec.end()) {
+          vec.push_back(addr);
+        }
+      }
     }
   }
   std::map<std::string, ServiceInfo> result;
@@ -957,15 +989,24 @@ std::map<std::string, ServiceInfo> mDNS::executeDiscovery() {
     if (info.has_ptr && info.has_srv && info.has_txt) {
       ServiceInfo complete = info;
       if (!info.host_name.empty()) {
-        if (hostname_to_ip.count(info.host_name)) {
-          complete.address = hostname_to_ip.at(info.host_name);
-          complete.has_a = true;
+        // Bundle all addresses for this host
+        if (hostname_to_addrs.count(info.host_name)) {
+          for (const auto& addr : hostname_to_addrs.at(info.host_name)) {
+            if (std::find(complete.addresses.begin(), complete.addresses.end(), addr) == complete.addresses.end()) {
+              complete.addresses.push_back(addr);
+            }
+          }
+          complete.has_a = !complete.addresses.empty();
         } else {
           std::string alt_host = info.host_name;
           if (!alt_host.empty() && alt_host.back() == '.') alt_host.pop_back();
-          if (hostname_to_ip.count(alt_host)) {
-            complete.address = hostname_to_ip.at(alt_host);
-            complete.has_a = true;
+          if (hostname_to_addrs.count(alt_host)) {
+            for (const auto& addr : hostname_to_addrs.at(alt_host)) {
+              if (std::find(complete.addresses.begin(), complete.addresses.end(), addr) == complete.addresses.end()) {
+                complete.addresses.push_back(addr);
+              }
+            }
+            complete.has_a = !complete.addresses.empty();
           }
         }
       }
