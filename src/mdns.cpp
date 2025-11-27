@@ -862,7 +862,7 @@ void mDNS::runMainLoop() {
   MDNS_LOG << "Closed socket " << (num_sockets > 1 ? "s" : "") << "\n";
 }
 
-std::map<std::string, ServiceInfo> mDNS::executeQuery(ServiceQueries serviceQueries) {
+std::map<std::string, ServiceInfo> mDNS::executeQuery(ServiceQueries serviceQueries, int timeout_ms) {
   ServiceDiscoveryContext ctx;
   int sockets[32];
   int query_id[32];
@@ -889,7 +889,7 @@ std::map<std::string, ServiceInfo> mDNS::executeQuery(ServiceQueries serviceQuer
     }
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
     auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start).count();
-    if (elapsed > 5000) { // 5 seconds
+    if (elapsed > timeout_ms) {
       running = false;
     }
   }
@@ -942,7 +942,7 @@ std::map<std::string, ServiceInfo> mDNS::executeQuery(ServiceQueries serviceQuer
   return result;
 }
 
-std::map<std::string, ServiceInfo> mDNS::executeDiscovery() {
+std::map<std::string, ServiceInfo> mDNS::executeDiscovery(int timeout_ms) {
   ServiceDiscoveryContext ctx;
   int sockets[32];
   int num_sockets = openClientSockets(sockets, sizeof(sockets) / sizeof(sockets[0]), 0);
@@ -963,7 +963,7 @@ std::map<std::string, ServiceInfo> mDNS::executeDiscovery() {
     }
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
     auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start).count();
-    if (elapsed > 5000) { // 5 seconds
+    if (elapsed > timeout_ms) {
       running = false;
     }
   }

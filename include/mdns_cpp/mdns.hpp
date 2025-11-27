@@ -30,8 +30,6 @@ struct ServiceInfo {
 };
 
 class mDNS {
-  // Discover mDNS services of a given type, returns map of instance_name -> ServiceInfo
-  std::map<std::string, ServiceInfo> discoverServices(const std::string& service_type, int timeout_ms);
  public:
   ~mDNS();
 
@@ -45,8 +43,8 @@ class mDNS {
   void setServiceTxtRecord(const std::string &text_record);
 
   using ServiceQueries = std::vector<std::pair<std::string, int>>;
-  std::map<std::string, ServiceInfo> executeQuery(ServiceQueries service);
-  std::map<std::string, ServiceInfo> executeDiscovery();
+  std::map<std::string, ServiceInfo> executeQuery(ServiceQueries service, int timeout_ms = 5000);
+  std::map<std::string, ServiceInfo> executeDiscovery(int timeout_ms = 5000);
 
  private:
   void runMainLoop();
