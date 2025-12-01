@@ -1,5 +1,6 @@
 #include <map>
 #include <vector>
+#include <atomic>
 #pragma once
 
 #include <functional>
