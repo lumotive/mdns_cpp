@@ -4,6 +4,7 @@
 #include <mutex>
 #include <atomic>
 #include <arpa/inet.h>
+#include <algorithm>
 
 #include "mdns_cpp/mdns.hpp"
 
@@ -66,11 +67,12 @@ static int discovery_query_callback(int sock, const struct sockaddr* from, size_
 
 
     // Add this address to all service instances whose host_name matches this hostname
+    std::string ip_str(ip);
     for (auto& [instance, info] : ctx->services) {
       if (info.host_name == hostname) {
         auto& addrs = info.addresses;
-        if (std::find(addrs.begin(), addrs.end(), ip) == addrs.end()) {
-          addrs.push_back(ip);
+        if (std::find(addrs.begin(), addrs.end(), ip_str) == addrs.end()) {
+          addrs.push_back(ip_str);
         }
         info.has_a = !addrs.empty();
       }
@@ -78,8 +80,8 @@ static int discovery_query_callback(int sock, const struct sockaddr* from, size_
 
     // Also, for direct hostname entry (for completeness)
     auto& addrs = ctx->services[hostname].addresses;
-    if (std::find(addrs.begin(), addrs.end(), ip) == addrs.end()) {
-      addrs.push_back(ip);
+    if (std::find(addrs.begin(), addrs.end(), ip_str) == addrs.end()) {
+      addrs.push_back(ip_str);
     }
     ctx->services[hostname].host_name = hostname;
     ctx->services[hostname].has_a = !addrs.empty();
@@ -91,7 +93,8 @@ static int discovery_query_callback(int sock, const struct sockaddr* from, size_
     for (size_t i = 0; i < txt_count; ++i) {
       std::string key(txt_records[i].key.str, txt_records[i].key.length);
       std::string value(txt_records[i].value.str, txt_records[i].value.length);
-      if (!key.empty() && std::find(txts.begin(), txts.end(), std::make_pair(key, value)) == txts.end()) {
+      auto pair = std::make_pair(key, value);
+      if (!key.empty() && std::find(txts.begin(), txts.end(), pair) == txts.end()) {
         txts.emplace_back(key, value);
       }
     }
@@ -904,7 +907,14 @@ std::map<std::string, ServiceInfo> mDNS::executeQuery(ServiceQueries serviceQuer
     if (!info.host_name.empty() && !info.addresses.empty() && info.has_a) {
       for (const auto& addr : info.addresses) {
         auto& vec = hostname_to_addrs[info.host_name];
-        if (std::find(vec.begin(), vec.end(), addr) == vec.end()) {
+        bool found = false;
+        for (const auto& v : vec) {
+          if (v == addr) {
+            found = true;
+            break;
+          }
+        }
+        if (!found) {
           vec.push_back(addr);
         }
       }
@@ -918,7 +928,14 @@ std::map<std::string, ServiceInfo> mDNS::executeQuery(ServiceQueries serviceQuer
         // Bundle all addresses for this host
         if (hostname_to_addrs.count(info.host_name)) {
           for (const auto& addr : hostname_to_addrs.at(info.host_name)) {
-            if (std::find(complete.addresses.begin(), complete.addresses.end(), addr) == complete.addresses.end()) {
+            bool found = false;
+            for (const auto& a : complete.addresses) {
+              if (a == addr) {
+                found = true;
+                break;
+              }
+            }
+            if (!found) {
               complete.addresses.push_back(addr);
             }
           }
@@ -928,7 +945,14 @@ std::map<std::string, ServiceInfo> mDNS::executeQuery(ServiceQueries serviceQuer
           if (!alt_host.empty() && alt_host.back() == '.') alt_host.pop_back();
           if (hostname_to_addrs.count(alt_host)) {
             for (const auto& addr : hostname_to_addrs.at(alt_host)) {
-              if (std::find(complete.addresses.begin(), complete.addresses.end(), addr) == complete.addresses.end()) {
+              bool found = false;
+              for (const auto& a : complete.addresses) {
+                if (a == addr) {
+                  found = true;
+                  break;
+                }
+              }
+              if (!found) {
                 complete.addresses.push_back(addr);
               }
             }
@@ -978,7 +1002,14 @@ std::map<std::string, ServiceInfo> mDNS::executeDiscovery(int timeout_ms) {
     if (!info.host_name.empty() && !info.addresses.empty() && info.has_a) {
       for (const auto& addr : info.addresses) {
         auto& vec = hostname_to_addrs[info.host_name];
-        if (std::find(vec.begin(), vec.end(), addr) == vec.end()) {
+        bool found = false;
+        for (const auto& v : vec) {
+          if (v == addr) {
+            found = true;
+            break;
+          }
+        }
+        if (!found) {
           vec.push_back(addr);
         }
       }
@@ -992,7 +1023,14 @@ std::map<std::string, ServiceInfo> mDNS::executeDiscovery(int timeout_ms) {
         // Bundle all addresses for this host
         if (hostname_to_addrs.count(info.host_name)) {
           for (const auto& addr : hostname_to_addrs.at(info.host_name)) {
-            if (std::find(complete.addresses.begin(), complete.addresses.end(), addr) == complete.addresses.end()) {
+            bool found = false;
+            for (const auto& a : complete.addresses) {
+              if (a == addr) {
+                found = true;
+                break;
+              }
+            }
+            if (!found) {
               complete.addresses.push_back(addr);
             }
           }
@@ -1002,7 +1040,14 @@ std::map<std::string, ServiceInfo> mDNS::executeDiscovery(int timeout_ms) {
           if (!alt_host.empty() && alt_host.back() == '.') alt_host.pop_back();
           if (hostname_to_addrs.count(alt_host)) {
             for (const auto& addr : hostname_to_addrs.at(alt_host)) {
-              if (std::find(complete.addresses.begin(), complete.addresses.end(), addr) == complete.addresses.end()) {
+              bool found = false;
+              for (const auto& a : complete.addresses) {
+                if (a == addr) {
+                  found = true;
+                  break;
+                }
+              }
+              if (!found) {
                 complete.addresses.push_back(addr);
               }
             }
