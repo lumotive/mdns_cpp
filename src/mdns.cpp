@@ -907,15 +907,9 @@ std::map<std::string, ServiceInfo> mDNS::executeQuery(ServiceQueries serviceQuer
     if (!info.host_name.empty() && !info.addresses.empty() && info.has_a) {
       for (const auto& addr : info.addresses) {
         auto& vec = hostname_to_addrs[info.host_name];
-        bool found = false;
-        for (const auto& v : vec) {
-          if (v == addr) {
-            found = true;
-            break;
-          }
-        }
-        if (!found) {
-          vec.push_back(addr);
+        std::string addr_str = addr;
+        if (std::find(vec.begin(), vec.end(), addr_str) == vec.end()) {
+          vec.push_back(addr_str);
         }
       }
     }
@@ -928,15 +922,9 @@ std::map<std::string, ServiceInfo> mDNS::executeQuery(ServiceQueries serviceQuer
         // Bundle all addresses for this host
         if (hostname_to_addrs.count(info.host_name)) {
           for (const auto& addr : hostname_to_addrs.at(info.host_name)) {
-            bool found = false;
-            for (const auto& a : complete.addresses) {
-              if (a == addr) {
-                found = true;
-                break;
-              }
-            }
-            if (!found) {
-              complete.addresses.push_back(addr);
+            std::string addr_str = addr;
+            if (std::find(complete.addresses.begin(), complete.addresses.end(), addr_str) == complete.addresses.end()) {
+              complete.addresses.push_back(addr_str);
             }
           }
           complete.has_a = !complete.addresses.empty();
@@ -945,15 +933,9 @@ std::map<std::string, ServiceInfo> mDNS::executeQuery(ServiceQueries serviceQuer
           if (!alt_host.empty() && alt_host.back() == '.') alt_host.pop_back();
           if (hostname_to_addrs.count(alt_host)) {
             for (const auto& addr : hostname_to_addrs.at(alt_host)) {
-              bool found = false;
-              for (const auto& a : complete.addresses) {
-                if (a == addr) {
-                  found = true;
-                  break;
-                }
-              }
-              if (!found) {
-                complete.addresses.push_back(addr);
+              std::string addr_str = addr;
+              if (std::find(complete.addresses.begin(), complete.addresses.end(), addr_str) == complete.addresses.end()) {
+                complete.addresses.push_back(addr_str);
               }
             }
             complete.has_a = !complete.addresses.empty();
@@ -1002,15 +984,9 @@ std::map<std::string, ServiceInfo> mDNS::executeDiscovery(int timeout_ms) {
     if (!info.host_name.empty() && !info.addresses.empty() && info.has_a) {
       for (const auto& addr : info.addresses) {
         auto& vec = hostname_to_addrs[info.host_name];
-        bool found = false;
-        for (const auto& v : vec) {
-          if (v == addr) {
-            found = true;
-            break;
-          }
-        }
-        if (!found) {
-          vec.push_back(addr);
+        std::string addr_str = addr;
+        if (std::find(vec.begin(), vec.end(), addr_str) == vec.end()) {
+          vec.push_back(addr_str);
         }
       }
     }
@@ -1022,33 +998,23 @@ std::map<std::string, ServiceInfo> mDNS::executeDiscovery(int timeout_ms) {
       if (!info.host_name.empty()) {
         // Bundle all addresses for this host
         if (hostname_to_addrs.count(info.host_name)) {
+          ServiceInfo complete = info;
           for (const auto& addr : hostname_to_addrs.at(info.host_name)) {
-            bool found = false;
-            for (const auto& a : complete.addresses) {
-              if (a == addr) {
-                found = true;
-                break;
-              }
-            }
-            if (!found) {
-              complete.addresses.push_back(addr);
+            std::string addr_str = addr;
+            if (std::find(complete.addresses.begin(), complete.addresses.end(), addr_str) == complete.addresses.end()) {
+              complete.addresses.push_back(addr_str);
             }
           }
           complete.has_a = !complete.addresses.empty();
         } else {
+          ServiceInfo complete = info;
           std::string alt_host = info.host_name;
           if (!alt_host.empty() && alt_host.back() == '.') alt_host.pop_back();
           if (hostname_to_addrs.count(alt_host)) {
             for (const auto& addr : hostname_to_addrs.at(alt_host)) {
-              bool found = false;
-              for (const auto& a : complete.addresses) {
-                if (a == addr) {
-                  found = true;
-                  break;
-                }
-              }
-              if (!found) {
-                complete.addresses.push_back(addr);
+              std::string addr_str = addr;
+              if (std::find(complete.addresses.begin(), complete.addresses.end(), addr_str) == complete.addresses.end()) {
+                complete.addresses.push_back(addr_str);
               }
             }
             complete.has_a = !complete.addresses.empty();
