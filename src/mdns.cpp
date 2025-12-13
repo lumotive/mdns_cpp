@@ -171,6 +171,14 @@ static int dump_callback(int sock, const struct sockaddr *from, size_t addrlen, 
                          uint16_t query_id, uint16_t rtype, uint16_t rclass, uint32_t ttl, const void *data,
                          size_t size, size_t name_offset, size_t name_length, size_t record_offset,
                          size_t record_length, void *user_data) {
+
+  (void)sock;
+  (void)query_id;
+  (void)name_length;
+  (void)record_offset;
+  (void)record_length;
+  (void)user_data;
+
   char addrbuffer[64]{};
   char namebuffer[256]{};
 
@@ -464,7 +472,7 @@ int service_callback(int sock, const struct sockaddr *from, size_t addrlen, mdns
                      uint16_t rtype, uint16_t rclass, uint32_t ttl, const void *data, size_t size, size_t name_offset,
                      size_t name_length, size_t record_offset, size_t record_length, void *user_data) {
   (void)sizeof(ttl);
-
+  (void)sizeof(name_length);
   if (static_cast<int>(entry) != MDNS_ENTRYTYPE_QUESTION) {
     return 0;
   }
@@ -499,7 +507,7 @@ int service_callback(int sock, const struct sockaddr *from, size_t addrlen, mdns
     record_name = "ANY";
   else
     return 0;
-  MDNS_LOG << "Query " << record_name << MDNS_STRING_FORMAT(name);
+  MDNS_LOG << "Query " << record_name << (int)name.length << " " << name.str;
   if ((name.length == (sizeof(dns_sd) - 1)) && (strncmp(name.str, dns_sd, sizeof(dns_sd) - 1) == 0)) {
     if ((rtype == MDNS_RECORDTYPE_PTR) || (rtype == MDNS_RECORDTYPE_ANY)) {
       // The PTR query was for the DNS-SD domain, send answer with a PTR record for the
@@ -508,7 +516,9 @@ int service_callback(int sock, const struct sockaddr *from, size_t addrlen, mdns
       // "<hostname>.<_service-name>._tcp.local."
       mdns_record_t answer = {.name = name,
                               .type = MDNS_RECORDTYPE_PTR,
-                              .data = {mdns_record_ptr_t{name = to_mdns_str_ref(service_record->service)}}};
+                              .data = {mdns_record_ptr_t{name = to_mdns_str_ref(service_record->service)}},
+                              .rclass = 0,
+                              .ttl = 0};
       // Send the answer, unicast or multicast depending on flag in query
       uint16_t unicast = (rclass & MDNS_UNICAST_RESPONSE);
       printf("  --> answer %.*s (%s)\n", MDNS_STRING_FORMAT(answer.data.ptr.name), (unicast ? "unicast" : "multicast"));
