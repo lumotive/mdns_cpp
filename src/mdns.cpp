@@ -527,7 +527,7 @@ int service_callback(int sock, const struct sockaddr *from, size_t addrlen, mdns
       // (typically on the "<hostname>.<_service-name>._tcp.local." format), and add
       // additional records containing the SRV record mapping the service instance name to our
       // qualified hostname (typically "<hostname>.local.") and port, as well as any IPv4/IPv6
-      // address for the hostname as A/AAAA records, and two test TXT records
+      // address for the hostname as A/AAAA records, and all TXT records
       // Answer PTR record reverse mapping "<_service-name>._tcp.local." to
       // "<hostname>.<_service-name>._tcp.local."
       mdns_record_t answer = service_record->record_ptr;
@@ -562,8 +562,7 @@ int service_callback(int sock, const struct sockaddr *from, size_t addrlen, mdns
       // The SRV query was for our service instance (usually
       // "<hostname>.<_service-name._tcp.local"), answer a SRV record mapping the service
       // instance name to our qualified hostname (typically "<hostname>.local.") and port, as
-      // well as any IPv4/IPv6 address for the hostname as A/AAAA records, and two test TXT
-      // records
+      // well as any IPv4/IPv6 address for the hostname as A/AAAA records, and all TXT records
       // Answer PTR record reverse mapping "<_service-name>._tcp.local." to
       // "<hostname>.<_service-name>._tcp.local."
       mdns_record_t answer = service_record->record_srv;
@@ -595,7 +594,7 @@ int service_callback(int sock, const struct sockaddr *from, size_t addrlen, mdns
         (service_record->address_ipv4.sin_family == AF_INET)) {
       // The A query was for our qualified hostname (typically "<hostname>.local.") and we
       // have an IPv4 address, answer with an A record mappiing the hostname to an IPv4
-      // address, as well as any IPv6 address for the hostname, and two test TXT records
+      // address, as well as any IPv6 address for the hostname, and all TXT records
       // Answer A records mapping "<hostname>.local." to IPv4 address
       mdns_record_t answer = service_record->record_a;
       mdns_record_t additional[5] = {{}};
@@ -625,7 +624,7 @@ int service_callback(int sock, const struct sockaddr *from, size_t addrlen, mdns
                (service_record->address_ipv6.sin6_family == AF_INET6)) {
       // The AAAA query was for our qualified hostname (typically "<hostname>.local.") and we
       // have an IPv6 address, answer with an AAAA record mappiing the hostname to an IPv6
-      // address, as well as any IPv4 address for the hostname, and two test TXT records
+      // address, as well as any IPv4 address for the hostname, and all TXT records
       // Answer AAAA records mapping "<hostname>.local." to IPv6 address
       mdns_record_t answer = service_record->record_aaaa;
       mdns_record_t additional[5] = {{}};
