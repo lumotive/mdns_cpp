@@ -36,3 +36,6 @@ build/
 
 debug.log
 .vs/*
+
+#clangd
+.cache/
